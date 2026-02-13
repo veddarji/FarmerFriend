@@ -1,0 +1,23 @@
+name: farmer_friend
+description: Farmer Friend app
+
+environment:
+  sdk: ">=2.18.0 <3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI / utilities
+  palette_generator: ^0.3.3+7
+  http: ^0.13.6
+  permission_handler: ^11.3.0
+  path_provider: ^2.0.14
+  flutter_secure_storage: ^8.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/logo.png
+    - assets/images/icons/
