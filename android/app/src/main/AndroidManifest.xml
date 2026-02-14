@@ -5,6 +5,12 @@
 
     <!-- INTERNET (required for streaming) -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    
 
     <!-- Android 13+ (media read) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
@@ -13,7 +19,7 @@
     <!-- Older Android versions -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <!-- WRITE_EXTERNAL_STORAGE only up to API 28 -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="34" />
 
     <!-- Optional: do NOT add MANAGE_EXTERNAL_STORAGE unless you need it -->
     <!-- <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" /> -->

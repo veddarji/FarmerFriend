@@ -27,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
     _entranceController = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 900));
@@ -75,15 +75,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _openSprayingModule() {
     debugPrint('SPRAY SYSTEM tapped - navigating');
-    final username = Auth().username;
-    final password = Auth().password;
 
     Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => SprayingModulePage(
-              streamUrl: 'https://camera.farmrover.site/stream.mjpg',
-              controlEndpoint: 'https://camera.farmrover.site',
-              mjpegUsername: username,
-              mjpegPassword: password,
+              signalingUrl: "http://100.93.20.61:8080/offer",
             )));
   }
 

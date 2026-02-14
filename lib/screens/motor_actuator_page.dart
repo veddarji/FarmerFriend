@@ -2,22 +2,15 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
 
-import '../widgets/mjpeg_viewer.dart';
-
 class MotorActuatorPage extends StatefulWidget {
-  final String streamUrl;
-  final String controlEndpoint;
-  final String? mjpegUsername;
-  final String? mjpegPassword;
+  final String signalingUrl; // http://<tailscale-ip>:8080/offer
 
   const MotorActuatorPage({
     super.key,
-    required this.streamUrl,
-    required this.controlEndpoint,
-    this.mjpegUsername,
-    this.mjpegPassword,
+    required this.signalingUrl,
   });
 
   @override
@@ -25,50 +18,101 @@ class MotorActuatorPage extends StatefulWidget {
 }
 
 class _MotorActuatorPageState extends State<MotorActuatorPage> {
+  late RTCVideoRenderer _renderer;
+  RTCPeerConnection? _pc;
+  RTCDataChannel? _dataChannel;
+
   bool _controlsOnRight = true;
   bool _sprayOn = false;
-  String _status = 'OFFLINE';
+  String _status = 'CONNECTING';
   double _servoAngle = 0;
 
-  void _setStatus(String s) {
-    if (!mounted) return;
-    setState(() => _status = s.toUpperCase());
+  // ================= INIT =================
+  @override
+  void initState() {
+    super.initState();
+    _initWebRTC();
   }
 
-  Future<void> _sendCommand(Map<String, dynamic> payload) async {
-    try {
-      final uri = Uri.parse('${widget.controlEndpoint}/command');
-      final headers = {'Content-Type': 'application/json'};
+  Future<void> _initWebRTC() async {
+    _renderer = RTCVideoRenderer();
+    await _renderer.initialize();
 
-      if (widget.mjpegUsername != null && widget.mjpegPassword != null) {
-        final auth = base64Encode(
-          utf8.encode('${widget.mjpegUsername}:${widget.mjpegPassword}'),
-        );
-        headers['Authorization'] = 'Basic $auth';
+    final configuration = {
+      'iceServers': [
+        {'urls': 'stun:stun.l.google.com:19302'}
+      ],
+    };
+
+    _pc = await createPeerConnection(configuration);
+
+    // 🔥 VERY IMPORTANT
+    await _pc!.addTransceiver(
+      kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
+      init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
+    );
+
+    _pc!.onTrack = (event) {
+      if (event.streams.isNotEmpty) {
+        _renderer.srcObject = event.streams[0];
       }
+    };
 
-      await http.post(uri, headers: headers, body: jsonEncode(payload));
-    } catch (_) {
-      _setStatus('OFFLINE');
+    RTCDataChannelInit dcInit = RTCDataChannelInit()
+      ..ordered = false
+      ..maxRetransmits = 0;
+
+    _dataChannel = await _pc!.createDataChannel("control", dcInit);
+
+    _dataChannel!.onDataChannelState = (state) {
+      if (state == RTCDataChannelState.RTCDataChannelOpen) {
+        setState(() => _status = "ONLINE");
+      }
+    };
+
+    await _createOffer();
+  }
+
+  Future<void> _createOffer() async {
+    final offer = await _pc!.createOffer();
+    await _pc!.setLocalDescription(offer);
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    final response = await http.post(
+      Uri.parse(widget.signalingUrl),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'sdp': offer.sdp,
+        'type': offer.type,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    await _pc!.setRemoteDescription(
+      RTCSessionDescription(data['sdp'], data['type']),
+    );
+  }
+
+  // ================= COMMAND SEND =================
+  void _sendCommand(String cmd, {int? angle}) {
+    if (_dataChannel == null ||
+        _dataChannel!.state != RTCDataChannelState.RTCDataChannelOpen) {
+      return;
     }
+
+    final payload = {
+      'cmd': cmd,
+      if (angle != null) 'angle': angle,
+    };
+
+    _dataChannel!.send(
+      RTCDataChannelMessage(jsonEncode(payload)),
+    );
   }
 
-  Future<void> _sendDirection(String cmd) async {
-    HapticFeedback.mediumImpact();
-    _sendCommand({'cmd': cmd});
-  }
-
-  void _toggleSpray() {
-    setState(() => _sprayOn = !_sprayOn);
-    _sendCommand({'cmd': _sprayOn ? 'SPRAY_ON' : 'SPRAY_OFF'});
-    HapticFeedback.heavyImpact();
-  }
-
-  void _setServo(double value) {
-    setState(() => _servoAngle = value);
-    _sendCommand({'cmd': 'SERVO', 'angle': value.toInt()});
-  }
-
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -91,55 +135,22 @@ class _MotorActuatorPageState extends State<MotorActuatorPage> {
     );
   }
 
-  // ================= HEADER =================
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.white10)),
-      ),
       child: Row(
         children: [
           const Icon(Icons.security, color: Colors.amber),
           const SizedBox(width: 12),
-          const Text(
-            'ACTUATOR PRO V2',
-            style: TextStyle(
+          Text(
+            'STATUS: $_status',
+            style: const TextStyle(
               color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
             ),
           ),
           const Spacer(),
-
-          GestureDetector(
-            onTap: _toggleSpray,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Colors.amber, width: 1.5),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.water_drop,
-                      size: 16, color: Colors.amber),
-                  const SizedBox(width: 6),
-                  Text(
-                    _sprayOn ? 'SPRAY ON' : 'SPRAY OFF',
-                    style: const TextStyle(
-                        color: Colors.amber,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 16),
           Switch(
             value: _controlsOnRight,
             activeColor: Colors.amber,
@@ -150,7 +161,6 @@ class _MotorActuatorPageState extends State<MotorActuatorPage> {
     );
   }
 
-  // ================= VIDEO =================
   Widget _buildVideoPanel() {
     return Expanded(
       flex: 3,
@@ -162,139 +172,74 @@ class _MotorActuatorPageState extends State<MotorActuatorPage> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
-          child: MJPEGViewer(
-            url: widget.streamUrl,
-            username: widget.mjpegUsername,
-            password: widget.mjpegPassword,
-          ),
+          child: RTCVideoView(_renderer),
         ),
       ),
     );
   }
 
-  // ================= JOYSTICK (FIXED) =================
   Widget _buildJoystickPanel() {
     return Expanded(
       flex: 2,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40), // ✅ FIX
-        child: LayoutBuilder(builder: (context, c) {
-          final cx = c.maxWidth / 2;
-          final cy = c.maxHeight / 2;
-          const size = 80.0;
-          const spread = 80.0; // ✅ REDUCED
-
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              _joyBtn(cx, cy - spread, Icons.keyboard_arrow_up, 'UP', 'CW', size),
-              _joyBtn(
-                  cx, cy + spread, Icons.keyboard_arrow_down, 'DOWN', 'CCW', size),
-              _joyBtn(
-                  cx - spread,
-                  cy,
-                  Icons.keyboard_arrow_left,
-                  'LEFT',
-                  'M2_LEFT',
-                  size),
-              _joyBtn(
-                  cx + spread,
-                  cy,
-                  Icons.keyboard_arrow_right,
-                  'RIGHT',
-                  'M2_RIGHT',
-                  size),
-            ],
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _joyBtn(double x, double y, IconData icon, String label,
-      String cmd, double size) {
-    return Positioned(
-      left: x - size / 2,
-      top: y - size / 2,
-      child: Column(
-        children: [
-          GestureDetector(
-            onTapDown: (_) => _sendDirection(cmd),
-            onTapUp: (_) => _sendDirection('STOP'),
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.amber, width: 2),
-                color: const Color(0xFF1A1A1A),
-              ),
-              child: Icon(icon, color: Colors.amber, size: 36),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  // ================= FOOTER =================
-  Widget _buildFooter() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.white10)),
-      ),
-      child: Row(
-        children: [
-          _statusPill(),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _joyBtn(Icons.keyboard_arrow_up, "CW"),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text('SERVO ${_servoAngle.toInt()}°',
-                    style: const TextStyle(
-                        color: Colors.amber,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold)),
-                Slider(
-                  value: _servoAngle,
-                  min: 0,
-                  max: 180,
-                  activeColor: Colors.amber,
-                  inactiveColor: Colors.white12,
-                  onChanged: _setServo,
-                ),
+                _joyBtn(Icons.keyboard_arrow_left, "M2_LEFT_START"),
+                const SizedBox(width: 40),
+                _joyBtn(Icons.keyboard_arrow_right, "M2_RIGHT_START"),
               ],
             ),
-          ),
-          const Icon(Icons.lock, color: Colors.greenAccent, size: 14),
-          const SizedBox(width: 6),
-          const Text('ENCRYPTED',
-              style: TextStyle(color: Colors.white12, fontSize: 10)),
-        ],
+            const SizedBox(height: 20),
+            _joyBtn(Icons.keyboard_arrow_down, "CCW"),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _statusPill() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.red),
+  Widget _joyBtn(IconData icon, String cmd) {
+    return GestureDetector(
+      onTapDown: (_) {
+        HapticFeedback.mediumImpact();
+        _sendCommand(cmd);
+      },
+      onTapUp: (_) => _sendCommand("STOP"),
+      child: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.amber, width: 2),
+        ),
+        child: Icon(icon, color: Colors.amber, size: 36),
       ),
-      child: const Text('OFFLINE',
-          style: TextStyle(
-              color: Colors.red,
-              fontSize: 11,
-              fontWeight: FontWeight.bold)),
     );
+  }
+
+  Widget _buildFooter() {
+    return Slider(
+      value: _servoAngle,
+      min: 0,
+      max: 180,
+      activeColor: Colors.amber,
+      onChanged: (value) {
+        setState(() => _servoAngle = value);
+        _sendCommand("SERVO", angle: value.toInt());
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _dataChannel?.close();
+    _pc?.close();
+    _renderer.dispose();
+    super.dispose();
   }
 }

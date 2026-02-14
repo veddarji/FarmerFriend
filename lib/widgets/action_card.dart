@@ -99,11 +99,12 @@ class _ActionCardState extends State<ActionCard>
                         child: Image.asset(widget.iconPath,
                             width: 28, height: 28)),
                     const Spacer(),
-                    Text(widget.title,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold)),
+                    Expanded(
+                        child: Text(widget.title,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold))),
                     const SizedBox(height: 6),
                     Container(
                         height: 3,
