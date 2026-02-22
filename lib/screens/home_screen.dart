@@ -164,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen>
             mainAxisSpacing: 16),
         children: [
           _buildAnimatedCard(
-              0, 'SPRAY\nSYSTEM', 'assets/images/icons/spray_icon.png', primary,
+              0, 'CONTROL\nCENTER', 'assets/images/icons/spray_icon.png', primary,
               onTap: _openSprayingModule),
           _buildAnimatedCard(1, 'OPTICAL\nFEED',
               'assets/images/icons/camera_icon.png', secondary),
@@ -236,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen>
                     child: Row(children: [
                       Text('COMMAND CENTER',
                           style: TextStyle(
-                              color: Colors.white.withOpacity(0.6),
+                              color: Colors.white.withValues(alpha: 0.6),
                               letterSpacing: 2,
                               fontSize: 12,
                               fontWeight: FontWeight.bold)),
@@ -266,9 +266,9 @@ class _GlassChip extends StatelessWidget {
     return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.04),
+            color: Colors.white.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: color.withOpacity(0.28))),
+            border: Border.all(color: color.withValues(alpha: 0.28))),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, color: color, size: 16),
           const SizedBox(width: 8),

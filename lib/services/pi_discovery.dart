@@ -27,7 +27,7 @@ class PiDiscovery {
 
       final completer = Completer<InternetAddress?>();
 
-      socket?.listen((event) {
+      socket.listen((event) {
         if (event == RawSocketEvent.read) {
           Datagram? datagram = socket?.receive();
           if (datagram == null) return;

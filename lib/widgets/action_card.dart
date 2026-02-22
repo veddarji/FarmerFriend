@@ -75,13 +75,13 @@ class _ActionCardState extends State<ActionCard>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.white.withOpacity(0.06),
-                      Colors.white.withOpacity(0.02)
+                      Colors.white.withValues(alpha: 0.06),
+                      Colors.white.withValues(alpha: 0.02)
                     ]),
                 border: Border.all(color: Colors.white10),
                 boxShadow: [
                   BoxShadow(
-                      color: widget.accentColor.withOpacity(0.12),
+                      color: widget.accentColor.withValues(alpha: 0.12),
                       blurRadius: 16,
                       offset: const Offset(0, 8))
                 ],
@@ -95,7 +95,7 @@ class _ActionCardState extends State<ActionCard>
                             shape: BoxShape.circle,
                             color: Colors.black26,
                             border: Border.all(
-                                color: widget.accentColor.withOpacity(0.4))),
+                                color: widget.accentColor.withValues(alpha: 0.4))),
                         child: Image.asset(widget.iconPath,
                             width: 28, height: 28)),
                     const Spacer(),
